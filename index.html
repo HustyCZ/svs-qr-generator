@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SVS - QR Kód Generátor</title>
+    <style>
+        :root {
+            --turquoise: #00BFB3;
+            --orange: #FF8400;
+            --green: #7AB800;
+            --red: #FF0000;
+            --dark: #222222;
+            --gray: #4a4a4a;
+        }
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        .hero {
+            text-align: center;
+            margin-bottom: 3rem;
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .hero h1 {
+            font-size: 2.5rem;
+            font-weight: 400;
+            color: var(--dark);
+            margin-bottom: 1rem;
+        }
+        .hero-highlight {
+            color: var(--turquoise);
+        }
+        .content-box {
+            background: white;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+            grid-template-areas:
+                "sarze pn"
+                "mnozstvi navin"
+                "datum empty";
+        }
+        .input-group[data-field="sarze"] { grid-area: sarze; }
+        .input-group[data-field="pn"] { grid-area: pn; }
+        .input-group[data-field="mnozstvi"] { grid-area: mnozstvi; }
+        .input-group[data-field="navin"] { grid-area: navin; }
+        .input-group[data-field="datum"] { grid-area: datum; }
+        .input-group {
+            margin-bottom: 1rem;
+        }
+        .input-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: var(--dark);
+            font-weight: 500;
+        }
+        .input-group input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 1rem;
+            box-sizing: border-box;
+        }
+        .btn {
+            background: var(--turquoise);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 4px;
+            font-size: 1rem;
+            cursor: pointer;
+            width: 100%;
+            transition: background-color 0.3s ease;
+            margin-top: 1rem;
+        }
+        .btn:hover {
+            background: #009b91;
+        }
+        .message {
+            margin-top: 1rem;
+            padding: 0.75rem;
+            border-radius: 4px;
+        }
+        .message.success {
+            background-color: #e6f4ea;
+            color: #1e4620;
+        }
+        .message.error {
+            background-color: #fce8e6;
+            color: #c5221f;
+        }
+        .footer {
+            background: var(--dark);
+            color: white;
+            padding: 2rem;
+            margin-top: 3rem;
+            text-align: center;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="hero">
+            <h1>SVS - <span class="hero-highlight">QR Kód</span> Generátor</h1>
+            <p style="color: #999999">Nástroj pro generování štítků o rozměru 50x20 mm</p>
+        </div>
+
+        <div class="content-box">
+            <div class="form-grid">
+                <div class="input-group" data-field="sarze">
+                    <label for="batch">Šarže</label>
+                    <input type="text" id="batch" placeholder="Zadejte šarži" oninput="updateQRText()">
+                </div>
+
+                <div class="input-group" data-field="pn">
+                    <label for="pn">PN</label>
+                    <input type="text" id="pn" placeholder="Zadejte PN" oninput="updateQRText()">
+                </div>
+
+                <div class="input-group" data-field="mnozstvi">
+                    <label for="quantity">Množství</label>
+                    <input type="number" id="quantity" placeholder="Zadejte množství" min="1" oninput="updateQRText()">
+                </div>
+
+                <div class="input-group" data-field="navin">
+                    <label for="winding">Návin</label>
+                    <input type="text" id="winding" placeholder="Zadejte návin" oninput="updateQRText()">
+                </div>
+
+                <div class="input-group" data-field="datum">
+                    <label for="date">Datum</label>
+                    <input type="date" id="date" oninput="updateQRText()">
+                </div>
+            </div>
+
+            <button onclick="generateQR()" class="btn">
+                Generovat PDF
+            </button>
+
+            <div id="message"></div>
+        </div>
+    </div>
+
+    <footer class="footer">
+        SVS, spol. s r.o., Všechna práva vyhrazena
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script>
+        // Nastavení aktuálního data
+        document.addEventListener('DOMContentLoaded', function() {
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('date').value = today;
+        });
+
+        function updateQRText() {
+            const pn = document.getElementById('pn').value;
+            const quantity = document.getElementById('quantity').value;
+            const date = new Date(document.getElementById('date').value)
+                .toLocaleDateString('cs-CZ', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric'
+                }).replace(/\s/g, '');
+            const batch = document.getElementById('batch').value;
+            
+            return `${pn};${quantity};${date};${batch}`;
+        }
+
+        async function generateQR() {
+            const qrText = updateQRText();
+            const pn = document.getElementById('pn').value;
+            const batch = document.getElementById('batch').value;
+            const winding = document.getElementById('winding').value;
+            const quantity = document.getElementById('quantity').value;
+            const date = new Date(document.getElementById('date').value)
+                .toLocaleDateString('cs-CZ', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric'
+                }).replace(/\s/g, '');
+            
+            const messageDiv = document.getElementById('message');
+
+            if (!pn || !date || !batch || !winding || !quantity) {
+                messageDiv.innerHTML = '<div class="message error">Prosím vyplňte všechna povinná pole</div>';
+                return;
+            }
+
+            try {
+                // Generování QR kódu
+                const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrText)}`;
+                const response = await fetch(qrUrl);
+                if (!response.ok) throw new Error('Chyba při načítání QR kódu');
+                
+                const blob = await response.blob();
+                const img = await new Promise((resolve, reject) => {
+                    const img = new Image();
+                    img.onload = () => resolve(img);
+                    img.onerror = reject;
+                    img.src = URL.createObjectURL(blob);
+                });
+
+                // Vytvoření PDF
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF({
+                    unit: 'in',
+                    format: [0.787402, 1.9685],
+                    orientation: 'landscape'
+                });
+
+                // Šarže - Arial Bold 8.6pt
+                doc.setFont("helvetica", "bold");
+                doc.setFontSize(8.6);
+                doc.text(batch, 0.093, 0.240);
+                
+                // Datum - Arial Regular 7pt
+                doc.setFont("helvetica", "normal");
+                doc.setFontSize(7);
+                doc.text(date, 0.827, 0.237);
+                
+                // PN - Arial Bold 6.8pt
+                doc.setFont("helvetica", "bold");
+                doc.setFontSize(6.8);
+                doc.text(pn, 0.098, 0.385);
+                
+                // Množství - Arial Regular 6pt
+                doc.setFont("helvetica", "normal");
+                doc.setFontSize(6);
+                doc.text(quantity, 0.100, 0.522);
+                
+                // Návin - Arial Regular 8pt
+                doc.setFont("helvetica", "normal");
+                doc.setFontSize(8);
+                doc.text(winding, 1.133, 0.499);
+
+                // QR kód
+                doc.addImage(img, 'PNG', 1.381, 0.157, 0.472, 0.472);
+
+                // Stažení PDF
+                doc.save('qr-kod.pdf');
+                messageDiv.innerHTML = '<div class="message success">PDF bylo úspěšně vygenerováno</div>';
+            } catch (error) {
+                messageDiv.innerHTML = `<div class="message error">Chyba: ${error.message}</div>`;
+                console.error(error);
+            }
+        }
+    </script>
+</body>
+</html>
